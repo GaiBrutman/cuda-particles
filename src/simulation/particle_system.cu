@@ -1,6 +1,8 @@
 #include "particle_system.cuh"
 #include "math_helpers.cuh"
 
+#include <math_constants.h>
+
 static constexpr float PI = CUDART_PI_F;
 
 __device__ unsigned int hash(unsigned int x) {
@@ -46,7 +48,7 @@ __global__ void initKernel(ParticleSystem ps, int width, int height) {
     float3 k = getRandomPointOnUnitSphere(idx+3);
     float3 k_prep = perpendicular(k, pos);
 
-    pos *= PARTICLE_RADIUS;
+    pos = pos * PARTICLE_RADIUS;
 
     ps.positions[idx] = make_float4(pos.x, pos.y, pos.z, 0.0f);
     ps.axes[idx] = make_float4(k_prep.x, k_prep.y, k_prep.z, angularSpeed);
