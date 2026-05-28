@@ -13,20 +13,34 @@ void CpuRenderer::init(int w, int h, int maxParticles) {
 float4* CpuRenderer::getMappedPositionBuffer() { return m_positions; }
 void    CpuRenderer::unmapPositionBuffer()      {}
 
+void CpuRenderer::setVelocityBuffer(const float4* velocities) {
+    m_velocities = velocities;
+}
+
 void CpuRenderer::render(int count, float /*time*/) {
-    // Clear to opaque black
     uchar4 black{0, 0, 0, 255};
     std::fill(m_pixels, m_pixels + m_width * m_height, black);
 
+    int half = count / 2;
     for (int i = 0; i < count; ++i) {
+        // Brightness by speed
+        float speed = 0.0f;
+        if (m_velocities) {
+            float vx = m_velocities[i].x;
+            float vy = m_velocities[i].y;
+            speed = std::sqrt(vx * vx + vy * vy);
+        }
+        float b = std::min(speed / 160.0f, 1.0f) * 0.7f + 0.3f;
+
+        uchar4 color;
+        if (i < half) {
+            color = {(unsigned char)(255 * b), (unsigned char)(160 * b), (unsigned char)(30 * b), 255};
+        } else {
+            color = {0, (unsigned char)(200 * b), (unsigned char)(255 * b), 255};
+        }
+
         int cx = (int)m_positions[i].x;
         int cy = (int)m_positions[i].y;
-
-        // Color: horizontal-movers orange, vertical-movers cyan
-        bool isVertical = (i >= count / 2);
-        uchar4 color = isVertical ? uchar4{0, 200, 255, 255} : uchar4{255, 160, 30, 255};
-
-        // 3×3 splat
         for (int dy = -1; dy <= 1; ++dy) {
             for (int dx = -1; dx <= 1; ++dx) {
                 int px = cx + dx;

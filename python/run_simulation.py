@@ -76,8 +76,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="Build, run, and visualize the particle simulation")
     parser.add_argument("--no-build",   action="store_true", help="Skip cmake build step")
-    parser.add_argument("--cpu-only",   action="store_true", default=True,
-                        help="Build without CUDA (default: True)")
+    parser.add_argument("--cpu-only",   action="store_true", default=False,
+                        help="Build without CUDA (use on machines without NVCC)")
     parser.add_argument("--particles",  type=int,   default=100)
     parser.add_argument("--frames",     type=int,   default=300)
     parser.add_argument("--width",      type=int,   default=1280)

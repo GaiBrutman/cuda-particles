@@ -9,4 +9,6 @@ struct Config {
     int         frames        = 300;
     float       dt            = 0.016f;
     std::string outputDir     = "./frames/";
+
+    static Config fromArgs(int argc, char** argv);
 };

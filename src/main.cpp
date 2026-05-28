@@ -13,10 +13,9 @@
 #include <memory>
 
 int main(int argc, char** argv) {
-    Config config; // TODO: parse argv
+    Config config = Config::fromArgs(argc, argv);
 
     std::unique_ptr<IRenderer> renderer;
-
 #ifdef CPU_ONLY
     renderer = std::make_unique<CpuRenderer>();
 #elif defined(USE_OPENGL)
