@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 
 option(CPU_ONLY           "Build without CUDA — CPU simulation, no NVCC required" OFF)
 option(USE_OPENGL_BACKEND "Build the OpenGL rendering backend"                    OFF)
+option(PROFILING          "Enable per-frame timing output (adds chrono overhead)" OFF)
 
 if(CPU_ONLY)
     project(cuda_particles LANGUAGES CXX)
@@ -21,6 +22,9 @@ set(APP_SOURCES
 
 add_executable(particles ${APP_SOURCES})
 target_include_directories(particles PRIVATE src third_party/stb)
+if(PROFILING)
+    target_compile_definitions(particles PRIVATE PROFILING)
+endif()
 
 # ── CPU-only path ─────────────────────────────────────────────────────────────
 if(CPU_ONLY)
