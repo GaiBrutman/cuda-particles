@@ -36,9 +36,7 @@ cuda-particles/
 │   │   ├── particle_system.cu       # Host-side alloc/free/init
 │   │   ├── spatial_grid.cuh         # Uniform spatial hash grid for O(n) neighbor queries
 │   │   └── kernels/
-│   │       ├── integrate.cu         # Time integration
-│   │       ├── forces.cu            # Force accumulation
-│   │       └── collision.cu         # Collision detection and response
+│   │       └── integrate.cu         # Time integration
 │   │
 │   ├── render/
 │   │   ├── i_renderer.h             # Abstract renderer interface — the only thing app.cpp sees
@@ -237,7 +235,6 @@ subprocess.run([
     "nvcc", "-O2", "-arch=sm_75",
     "src/main.cpp", "src/simulation/particle_system.cu",
     "src/simulation/kernels/integrate.cu",
-    "src/simulation/kernels/forces.cu",
     "src/render/offscreen/offscreen_renderer.cu",
     "src/render/offscreen/frame_exporter.cpp",
     "-o", "particles"

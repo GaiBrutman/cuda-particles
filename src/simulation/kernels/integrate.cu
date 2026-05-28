@@ -1,35 +1,32 @@
 #include "simulation/particle_system.cuh"
+#include "simulation/math_helpers.cuh"
 
-__global__ void integrateKernel(ParticleSystem ps, float dt, int width, int height) {
+__device__ float3 rotatePoint3d(float3 p, float3 k, float theta) {
+    float cosT = cosf(theta);
+    float sinT = sinf(theta);
+
+    return p * cosT + cross(k, p) * sinT;
+}
+
+__global__ void integrateKernel(ParticleSystem ps, float dt) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= ps.count) return;
 
     float4 pos = ps.positions[idx];
-    float4 vel = ps.velocities[idx];
-    float4 frc = __ldg(&ps.forces[idx]);
+    float4 axis = __ldg(&ps.axes[idx]);
 
-    // Euler: v += (F/m) * dt
-    float invMass = 1.0f / pos.w;
-    vel.x += frc.x * invMass * dt;
-    vel.y += frc.y * invMass * dt;
+    float3 pos3d = {pos.x, pos.y, pos.z};
+    float3 axis3d = {axis.x, axis.y, axis.z};
+    
+    float3 newPos = rotatePoint3d(pos3d, axis3d, axis.w * dt);
 
-    pos.x += vel.x * dt;
-    pos.y += vel.y * dt;
-
-    // Elastic wall bounce (reflect, preserve speed)
-    float W = (float)width;
-    float H = (float)height;
-    if (pos.x < 0.0f) { pos.x =  0.0f; vel.x =  fabsf(vel.x); }
-    if (pos.x > W)    { pos.x =  W;    vel.x = -fabsf(vel.x); }
-    if (pos.y < 0.0f) { pos.y =  0.0f; vel.y =  fabsf(vel.y); }
-    if (pos.y > H)    { pos.y =  H;    vel.y = -fabsf(vel.y); }
-
-    ps.positions[idx]  = pos;
-    ps.velocities[idx] = vel;
+    ps.positions[idx].x = newPos.x;
+    ps.positions[idx].y = newPos.y;
+    ps.positions[idx].z = newPos.z;
 }
 
-void integrateParticles(ParticleSystem& ps, float dt, int width, int height) {
+void integrateParticles(ParticleSystem& ps, float dt) {
     int grid = (ps.count + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    integrateKernel<<<grid, BLOCK_SIZE>>>(ps, dt, width, height);
+    integrateKernel<<<grid, BLOCK_SIZE>>>(ps, dt);
     CUDA_CHECK(cudaGetLastError());
 }

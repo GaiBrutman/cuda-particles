@@ -12,16 +12,13 @@ void App::run() {
     ParticleSystem ps;
     particleSystemAlloc(ps, m_config.particleCount);
     ps.positions = m_renderer->getMappedPositionBuffer();  // renderer owns the buffer
-    m_renderer->setVelocityBuffer(ps.velocities);
 
     particleSystemInit(ps, m_config.width, m_config.height);
 
     FrameExporter exporter(m_config.outputDir);
 
     for (int frame = 0; frame < m_config.frames; ++frame) {
-        accumulateForces(ps);
-        integrateParticles(ps, m_config.dt, m_config.width, m_config.height);
-        resolveCollisions(ps);
+        integrateParticles(ps, m_config.dt);
         m_renderer->unmapPositionBuffer();
         m_renderer->render(m_config.particleCount, frame * m_config.dt);
 

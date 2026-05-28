@@ -18,11 +18,13 @@
 
 constexpr int   BLOCK_SIZE      = 256;
 constexpr float PARTICLE_RADIUS = 3.0f;
+constexpr float BASE_SPEED = 1.0f;
+constexpr float CAMERA_DIST = 3 * PARTICLE_RADIUS;
+constexpr float FOCAL_LENGTH = 600.0f;
 
 struct ParticleSystem {
-    float4* positions;   // xyzw = x, y, z, mass  — owned by IRenderer
-    float4* velocities;  // xyzw = vx, vy, vz, lifespan
-    float4* forces;      // xyzw = fx, fy, fz, unused
+    float4* positions;   // xyzw = x, y, z, unused  — owned by IRenderer
+    float4* axes;        // xyzw = ax, ay, az, speed - never written to after init
     int     count;
 };
 
@@ -32,6 +34,4 @@ void particleSystemFree(ParticleSystem& ps);
 void particleSystemInit(ParticleSystem& ps, int width, int height);
 
 // Per-frame pipeline steps
-void accumulateForces(ParticleSystem& ps);
-void integrateParticles(ParticleSystem& ps, float dt, int width, int height);
-void resolveCollisions(ParticleSystem& ps);
+void integrateParticles(ParticleSystem& ps, float dt);

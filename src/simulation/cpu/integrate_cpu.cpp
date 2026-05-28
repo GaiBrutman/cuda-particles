@@ -1,17 +1,26 @@
 #include "simulation/particle_system.cuh"
+#include "cuda_types.h"
+#include <cmath>
 
-void integrateParticles(ParticleSystem& ps, float dt, int width, int height) {
+static float3 rotatePoint3d(float3 p, float3 k, float theta) {
+    float cosT = std::cos(theta);
+    float sinT = std::sin(theta);
+
+    return p * cosT + cross(k, p) * sinT;
+}
+
+void integrateParticles(ParticleSystem& ps, float dt) {
     for (int i = 0; i < ps.count; ++i) {
         float4& pos = ps.positions[i];
-        float4& vel = ps.velocities[i];
+        float4& axis = ps.axes[i];
 
-        pos.x += vel.x * dt;
-        pos.y += vel.y * dt;
+        float3 pos3d = {pos.x, pos.y, pos.z};
+        float3 axis3d = {axis.x, axis.y, axis.z};
+        
+        float3 newPos = rotatePoint3d(pos3d, axis3d, axis.w * dt);
 
-        // Bounce off walls
-        if (pos.x < 0.0f)          { pos.x =  0.0f;          vel.x = -vel.x; }
-        if (pos.x > (float)width)  { pos.x = (float)width;   vel.x = -vel.x; }
-        if (pos.y < 0.0f)          { pos.y =  0.0f;          vel.y = -vel.y; }
-        if (pos.y > (float)height) { pos.y = (float)height;  vel.y = -vel.y; }
+        ps.positions[i].x = newPos.x;
+        ps.positions[i].y = newPos.y;
+        ps.positions[i].z = newPos.z;
     }
 }

@@ -1,37 +1,74 @@
 #include "simulation/particle_system.cuh"
 #include <cstdlib>
+#include <random>
+#include <cmath>
 
-void particleSystemAlloc(ParticleSystem& ps, int count) {
-    ps.count      = count;
-    ps.positions  = nullptr;  // owned by IRenderer; set via getMappedPositionBuffer()
-    ps.velocities = static_cast<float4*>(std::malloc(count * sizeof(float4)));
-    ps.forces     = static_cast<float4*>(std::malloc(count * sizeof(float4)));
+#include "cuda_types.h"
+
+static constexpr float PI = (float)M_PI;
+
+static float getRandomUnitFloat(void)
+{
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+
+    return dis(gen);
 }
 
-void particleSystemFree(ParticleSystem& ps) {
-    std::free(ps.velocities);
-    std::free(ps.forces);
-    ps.velocities = ps.forces = nullptr;
+static float3 getRandomPointOnUnitSphere(void)
+{
+    float u1 = getRandomUnitFloat();
+    float u2 = getRandomUnitFloat();
+
+    float theta = 2 * PI * u1;
+    float phi = std::acos(1 - 2 * u2);
+    float x = std::sin(phi) * std::cos(theta);
+    float y = std::sin(phi) * std::sin(theta);
+    float z = std::cos(phi);
+
+    return {x, y, z};
 }
 
-void particleSystemInit(ParticleSystem& ps, int width, int height) {
-    int   half  = ps.count / 2;
-    float speed = 80.0f;
+static float3 perpendicular(float3 k, float3 p) {
+    float3 p_hat = normalize(p);
+    return normalize(k - dot(k, p_hat) * p_hat);
+}
 
-    for (int i = 0; i < half; ++i) {
-        float t   = (half > 1) ? (float)i / (float)(half - 1) : 0.5f;
-        float dir = (i % 2 == 0) ? 1.0f : -1.0f;
-        ps.positions[i]  = {t * (float)width, (float)height * 0.5f, 0.0f, 1.0f};
-        ps.velocities[i] = {dir * speed, 0.0f, 0.0f, 0.0f};
-        ps.forces[i]     = {0.0f, 0.0f, 0.0f, 0.0f};
-    }
-    for (int i = half; i < ps.count; ++i) {
-        int   j     = i - half;
-        int   vhalf = ps.count - half;
-        float t     = (vhalf > 1) ? (float)j / (float)(vhalf - 1) : 0.5f;
-        float dir   = (j % 2 == 0) ? 1.0f : -1.0f;
-        ps.positions[i]  = {(float)width * 0.5f, t * (float)height, 0.0f, 1.0f};
-        ps.velocities[i] = {0.0f, dir * speed, 0.0f, 0.0f};
-        ps.forces[i]     = {0.0f, 0.0f, 0.0f, 0.0f};
+void particleSystemAlloc(ParticleSystem &ps, int count)
+{
+    ps.count = count;
+    ps.positions = nullptr; // owned by IRenderer; set via getMappedPositionBuffer()
+    ps.axes = static_cast<float4 *>(std::malloc(count * sizeof(float4)));
+}
+
+void particleSystemFree(ParticleSystem &ps)
+{
+    std::free(ps.axes);
+    ps.axes = nullptr;
+}
+
+void particleSystemInit(ParticleSystem &ps, int width, int height)
+{
+    for (int i = 0; i < ps.count; ++i)
+    {
+        // Calculate initial position
+        float3 pos = getRandomPointOnUnitSphere() * PARTICLE_RADIUS;
+
+        ps.positions[i] = {pos.x, pos.y, pos.z, 0.0f};
+    
+        float angularSpeed = (0.5 + getRandomUnitFloat()) * BASE_SPEED;
+
+        // if (i > 0) {
+        //     ps.axes[i] = ps.axes[i-1];
+        //     ps.axes[i].w = angularSpeed;
+        //     continue;
+        // }
+
+        // Calculate orbital axis
+        float3 k = getRandomPointOnUnitSphere();
+        float3 k_prep = perpendicular(k, pos);
+
+        ps.axes[i] = {k_prep.x, k_prep.y, k_prep.z, angularSpeed};
     }
 }

@@ -27,8 +27,6 @@ if(CPU_ONLY)
     target_sources(particles PRIVATE
         src/simulation/cpu/particle_system_cpu.cpp
         src/simulation/cpu/integrate_cpu.cpp
-        src/simulation/cpu/forces_cpu.cpp
-        src/simulation/cpu/collision_cpu.cpp
         src/render/cpu/cpu_renderer.cpp
         src/render/offscreen/frame_exporter.cpp
         third_party/stb/stb_impl.cpp
@@ -40,8 +38,6 @@ else()
     target_sources(particles PRIVATE
         src/simulation/particle_system.cu
         src/simulation/kernels/integrate.cu
-        src/simulation/kernels/forces.cu
-        src/simulation/kernels/collision.cu
         src/render/offscreen/offscreen_renderer.cu
         src/render/offscreen/frame_exporter.cpp
         third_party/stb/stb_impl.cpp

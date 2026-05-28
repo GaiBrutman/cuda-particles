@@ -3,6 +3,8 @@
 #include <cstring>
 #include <algorithm>
 
+#include "simulation/particle_system.cuh"
+
 void CpuRenderer::init(int w, int h, int maxParticles) {
     m_width     = w;
     m_height    = h;
@@ -13,24 +15,14 @@ void CpuRenderer::init(int w, int h, int maxParticles) {
 float4* CpuRenderer::getMappedPositionBuffer() { return m_positions; }
 void    CpuRenderer::unmapPositionBuffer()      {}
 
-void CpuRenderer::setVelocityBuffer(const float4* velocities) {
-    m_velocities = velocities;
-}
-
 void CpuRenderer::render(int count, float /*time*/) {
     uchar4 black{0, 0, 0, 255};
     std::fill(m_pixels, m_pixels + m_width * m_height, black);
 
     int half = count / 2;
     for (int i = 0; i < count; ++i) {
-        // Brightness by speed
-        float speed = 0.0f;
-        if (m_velocities) {
-            float vx = m_velocities[i].x;
-            float vy = m_velocities[i].y;
-            speed = std::sqrt(vx * vx + vy * vy);
-        }
-        float b = std::min(speed / 160.0f, 1.0f) * 0.7f + 0.3f;
+        // Brightness by depth
+        float b = std::clamp(m_positions[i].z / PARTICLE_RADIUS * 0.5f + 0.5f, 0.0f, 1.0f);
 
         uchar4 color;
         if (i < half) {
@@ -39,8 +31,9 @@ void CpuRenderer::render(int count, float /*time*/) {
             color = {0, (unsigned char)(200 * b), (unsigned char)(255 * b), 255};
         }
 
-        int cx = (int)m_positions[i].x;
-        int cy = (int)m_positions[i].y;
+        int cx = (m_positions[i].x / (m_positions[i].z + CAMERA_DIST)) * FOCAL_LENGTH + m_width/2;
+        int cy = (m_positions[i].y / (m_positions[i].z + CAMERA_DIST)) * FOCAL_LENGTH + m_height/2;
+
         for (int dy = -1; dy <= 1; ++dy) {
             for (int dx = -1; dx <= 1; ++dx) {
                 int px = cx + dx;

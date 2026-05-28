@@ -7,11 +7,10 @@
 __global__ void clearKernel(uchar4* pixels, int numPixels) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPixels) return;
-    pixels[idx] = uchar4{0, 0, 0, 255};
+    pixels[idx] = make_uchar4(0, 0, 0, 255);
 }
 
 __global__ void colorMapKernel(const float4* __restrict__ positions,
-                                const float4* __restrict__ velocities,
                                 uchar4*                    pixels,
                                 int count, int halfCount,
                                 int width, int height) {
@@ -19,11 +18,10 @@ __global__ void colorMapKernel(const float4* __restrict__ positions,
     if (idx >= count) return;
 
     float4 pos   = positions[idx];
-    float4 vel   = __ldg(&velocities[idx]);
-    uchar4 color = velocityToColorDevice(vel, idx, halfCount);
+    uchar4 color = depthToColorDevice(pos.z, idx, halfCount);
 
-    int cx = (int)pos.x;
-    int cy = (int)pos.y;
+    int cx = (pos.x / (pos.z + CAMERA_DIST)) * FOCAL_LENGTH + width/2;
+    int cy = (pos.y / (pos.z + CAMERA_DIST)) * FOCAL_LENGTH + height/2;
 
     // 3×3 splat — inner loop fully unrolled by compiler
     for (int dy = -1; dy <= 1; ++dy) {
@@ -49,10 +47,6 @@ void OffscreenRenderer::init(int w, int h, int maxParticles) {
 float4* OffscreenRenderer::getMappedPositionBuffer() { return d_positions; }
 void    OffscreenRenderer::unmapPositionBuffer()      {}
 
-void OffscreenRenderer::setVelocityBuffer(const float4* velocities) {
-    d_velocities = velocities;
-}
-
 void OffscreenRenderer::render(int count, float /*time*/) {
     int numPixels = m_width * m_height;
 
@@ -60,10 +54,10 @@ void OffscreenRenderer::render(int count, float /*time*/) {
     clearKernel<<<clearGrid, BLOCK_SIZE>>>(d_pixels, numPixels);
     CUDA_CHECK(cudaGetLastError());
 
-    if (count > 0 && d_velocities) {
+    if (count > 0) {
         int mapGrid = (count + BLOCK_SIZE - 1) / BLOCK_SIZE;
         colorMapKernel<<<mapGrid, BLOCK_SIZE>>>(
-            d_positions, d_velocities, d_pixels,
+            d_positions, d_pixels,
             count, count / 2, m_width, m_height);
         CUDA_CHECK(cudaGetLastError());
     }
