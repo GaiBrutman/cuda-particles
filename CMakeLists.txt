@@ -20,7 +20,7 @@ set(APP_SOURCES
 )
 
 add_executable(particles ${APP_SOURCES})
-target_include_directories(particles PRIVATE src)
+target_include_directories(particles PRIVATE src third_party/stb)
 
 # ── CPU-only path ─────────────────────────────────────────────────────────────
 if(CPU_ONLY)
@@ -30,6 +30,8 @@ if(CPU_ONLY)
         src/simulation/cpu/forces_cpu.cpp
         src/simulation/cpu/collision_cpu.cpp
         src/render/cpu/cpu_renderer.cpp
+        src/render/offscreen/frame_exporter.cpp
+        third_party/stb/stb_impl.cpp
     )
     target_compile_definitions(particles PRIVATE CPU_ONLY)
 
