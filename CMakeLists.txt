@@ -44,8 +44,11 @@ else()
         src/simulation/kernels/collision.cu
         src/render/offscreen/offscreen_renderer.cu
         src/render/offscreen/frame_exporter.cpp
+        third_party/stb/stb_impl.cpp
     )
     set_target_properties(particles PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries(particles PRIVATE CUDA::cudart)
 
     # ── OpenGL backend (optional, CUDA path only) ─────────────────────────────
     if(USE_OPENGL_BACKEND)
