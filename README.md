@@ -1,100 +1,107 @@
 # CUDA Particle Simulation
 
-A real-time GPU particle simulation for learning CUDA optimization techniques hands-on. Renders either in a live OpenGL window or dumps PNG frames for headless/Colab use.
+A real-time GPU particle simulation for learning CUDA optimization techniques hands-on. Supports three backends selected at build time:
+
+- **CPU-only** — no CUDA required; plain C++, works anywhere
+- **CUDA offscreen** — headless GPU rendering, works on Colab T4
+- **CUDA + OpenGL** — live windowed display for local dev with NSight profiling
 
 ## Requirements
 
-| | Local (OpenGL) | Headless / Colab |
-|---|---|---|
-| CUDA Toolkit | 11.0+ | 11.0+ |
-| C++ compiler | 17+ | 17+ |
-| CMake | 3.18+ | 3.18+ |
-| OpenGL / GLFW | required | not needed |
-| Python | optional | optional (visualization) |
+| | CPU-only | CUDA offscreen | CUDA + OpenGL |
+|---|---|---|---|
+| CUDA Toolkit | — | 11.0+ | 11.0+ |
+| C++ compiler | 17+ | 17+ | 17+ |
+| CMake | 3.18+ | 3.18+ | 3.18+ |
+| OpenGL / GLFW | — | — | required |
+| Python | optional | optional | optional |
 
 ## Build
 
 ```bash
-# Offscreen only (works everywhere, no display required)
-cmake -B build -DUSE_OPENGL_BACKEND=OFF
+# CPU-only — no NVCC needed
+cmake -B build -DCPU_ONLY=ON
 cmake --build build -j$(nproc)
 
-# OpenGL + offscreen (local dev)
-cmake -B build -DUSE_OPENGL_BACKEND=ON
+# CUDA offscreen (headless, Colab-compatible)
+cmake -B build -DCMAKE_CUDA_ARCHITECTURES=75   # 75 = T4; use 'native' locally
+cmake --build build -j$(nproc)
+
+# CUDA + OpenGL (local dev)
+cmake -B build -DUSE_OPENGL_BACKEND=ON -DCMAKE_CUDA_ARCHITECTURES=native
 cmake --build build -j$(nproc)
 ```
 
 ## Run
 
 ```bash
-# Headless — renders 120 frames to ./frames/
-./build/particles --backend offscreen --particles 500000 --frames 120 --output ./frames/
+# Dump 300 frames to ./frames/
+./build/particles --particles 100 --frames 300 --output ./frames/
 
-# Real-time window
-./build/particles --backend opengl --particles 1000000
+# Larger scale
+./build/particles --particles 500000 --frames 120
 ```
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--backend` | `offscreen` | `offscreen` or `opengl` |
-| `--particles` | `100000` | |
-| `--frames` | `300` | offscreen only |
-| `--output` | `./frames/` | offscreen only |
-| `--width` / `--height` | `1280` / `720` | |
+| `--particles` | `100` | particle count |
+| `--frames` | `300` | number of frames to render |
+| `--output` | `./frames/` | output directory for PNG frames |
+| `--width` / `--height` | `1280` / `720` | frame dimensions in pixels |
 | `--dt` | `0.016` | timestep in seconds |
 
-## Google Colab
+## Visualize
 
-Open `notebooks/particles_colab.ipynb` — it compiles and runs everything in-browser on a T4 GPU. Or use the script directly:
+```bash
+# Interactive animation (requires matplotlib + pillow)
+python python/visualize.py --frames ./frames --fps 30
 
-```python
-# python/run_simulation.py
-import subprocess
-from IPython.display import Image, display
-
-subprocess.run([
-    "nvcc", "-O2", "-arch=sm_75",
-    "src/main.cpp", "src/simulation/particle_system.cu",
-    "src/simulation/kernels/integrate.cu",
-    "src/simulation/kernels/forces.cu",
-    "src/render/offscreen/offscreen_renderer.cu",
-    "src/render/offscreen/frame_exporter.cpp",
-    "-o", "particles"
-], check=True)
-
-subprocess.run([
-    "./particles", "--backend", "offscreen",
-    "--particles", "500000", "--frames", "60", "--output", "/tmp/frames/"
-], check=True)
-
-for i in range(60):
-    display(Image(f"/tmp/frames/frame_{i:04d}.png"))
+# Export GIF or MP4
+python python/visualize.py --frames ./frames --fps 30 --output anim.gif
+python python/visualize.py --frames ./frames --fps 30 --output anim.mp4  # needs ffmpeg
 ```
 
-> Use `-arch=sm_75` for Colab T4, or `-arch=native` after checking `nvidia-smi`.
+## Google Colab (T4 GPU)
+
+Open `notebooks/particles_colab.ipynb` — it builds and runs everything in-browser on a T4.
+
+Or use the helper script:
+
+```bash
+# Build + run + show animation in one command
+python python/run_simulation.py --particles 100 --frames 300 --output anim.gif
+
+# CPU-only (no GPU required)
+python python/run_simulation.py --cpu-only --particles 100 --frames 300
+```
 
 ## Project structure
 
 ```
 src/
-├── main.cpp                  # Entry point
-├── app/                      # Main loop, CLI config
-├── simulation/               # Pure CUDA — no renderer deps
-│   └── kernels/              # simulation kernels
+├── main.cpp                  # Entry point; selects renderer via #ifdef
+├── app/                      # Frame loop, CLI config
+├── simulation/               # Simulation — zero renderer dependencies
+│   ├── particle_system.cuh   # ParticleSystem SoA struct + CUDA_CHECK macro
+│   ├── spatial_grid.cuh      # Uniform grid helpers for O(n) neighbor queries
+│   ├── cpu/                  # CPU fallback implementations
+│   └── kernels/              # CUDA kernels (integrate, forces, collision)
 └── render/
     ├── i_renderer.h          # Abstract interface (the only thing app.cpp touches)
-    ├── offscreen/            # CUDA → pixel buffer → PNG
+    ├── cpu/                  # CPU renderer — malloc + software rasterizer
+    ├── offscreen/            # CUDA → pinned pixel buffer → PNG via stb_image_write
     └── opengl/               # GLFW window, CUDA–GL VBO interop
 shaders/                      # GLSL point sprites
-python/                       # Colab helper scripts
+third_party/stb/              # stb_image_write (header-only PNG export)
+python/                       # visualize.py, run_simulation.py
 notebooks/                    # Colab demo notebook
 ```
-
-The simulation kernels receive a plain `float4*` device pointer. They don't know — and don't care — whether it came from `cudaMalloc` or a mapped OpenGL VBO.
 
 ## Key design decisions
 
 - **SoA memory layout** — `float4* positions`, `float4* velocities`, `float4* forces` as separate arrays. Threads in a warp read adjacent addresses → fully coalesced 128-byte transactions.
-- **`float4` over `float3`** — 128-bit aligned; `float3` would force two memory transactions per access.
-- **One kernel per physical effect** — compose kernels in the app loop rather than building one monolithic kernel.
-- **No CPU roundtrip in the render loop** — positions stay on the GPU. The OpenGL backend maps the VBO directly into CUDA address space via `cudaGraphicsMapResources`.
+- **`float4` over `float3`** — 128-bit aligned; `float3` forces two memory transactions per access.
+- **Renderer owns the position buffer** — `IRenderer::getMappedPositionBuffer()` returns the device pointer that kernels write into directly, with no intermediate copy. OpenGL backend maps a VBO into CUDA address space; offscreen and CPU backends use their own allocations.
+- **One kernel per physical effect** — integrate, forces, collision are separate kernels composed in the app loop, not one monolithic kernel.
+- **Pinned host memory for readback** — `cudaMallocHost` in the offscreen renderer gives PCIe DMA transfer speeds for the D2H pixel copy each frame.
+- **Thrust for bulk ops** — force buffer zeroing and (future) spatial grid sort use `thrust::fill` / `thrust::sort_by_key` so launch configs are handled automatically.
